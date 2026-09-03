@@ -28,6 +28,7 @@ import {
   TrendingDown,
   Navigation,
   Layers,
+  Loader2,
 } from "lucide-react";
 
 interface BedAvailability {
@@ -222,6 +223,13 @@ export default function AarogyaNiwasPage() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [stayDurationDays, setStayDurationDays] = useState<number>(7);
 
+  // Geospatial Search States
+  const [isSearchingLive, setIsSearchingLive] = useState<boolean>(false);
+  const [geoHospitals, setGeoHospitals] = useState<Hospital[] | null>(null);
+  const [geoShelters, setGeoShelters] = useState<Shelter[] | null>(null);
+  const [locationMatchedName, setLocationMatchedName] = useState<string | null>(null);
+  const [isInvalidLocation, setIsInvalidLocation] = useState<boolean>(false);
+
   // Live Hardware Telemetry States
   const [iotHeartRate, setIotHeartRate] = useState<number>(74);
   const [iotSpO2, setIotSpO2] = useState<number>(98);
@@ -239,6 +247,60 @@ export default function AarogyaNiwasPage() {
   // Audio Context Ref
   const audioContextRef = useRef<AudioContext | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+
+  // Real-Time Google-Maps-Style Geospatial Search Hook
+  useEffect(() => {
+    const q = searchTerm.trim();
+
+    if (q.length < 3) {
+      setGeoHospitals(null);
+      setGeoShelters(null);
+      setLocationMatchedName(null);
+      setIsInvalidLocation(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingLive(true);
+      setIsInvalidLocation(false);
+
+      try {
+        const res = await fetch(`/api/hospitals-live?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.locationFound && data.hospitals && data.hospitals.length > 0) {
+            setGeoHospitals(data.hospitals);
+            setGeoShelters(data.shelters || []);
+            setLocationMatchedName(data.matchedAddress);
+            setIsInvalidLocation(false);
+          } else {
+            setGeoHospitals([]);
+            setGeoShelters([]);
+            setLocationMatchedName(null);
+            setIsInvalidLocation(true);
+          }
+        } else {
+          setIsInvalidLocation(true);
+        }
+      } catch {
+        setIsInvalidLocation(true);
+      } finally {
+        setIsSearchingLive(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const displayHospitals = useMemo(() => {
+    if (geoHospitals !== null) return geoHospitals;
+    return APEX_NATIONAL_HOSPITALS;
+  }, [geoHospitals]);
+
+  const displayShelters = useMemo(() => {
+    if (geoShelters !== null && geoShelters.length > 0) return geoShelters;
+    return DEFAULT_SHELTERS;
+  }, [geoShelters]);
 
   const playEmergencyBuzzer = () => {
     if (!soundEnabled) return;
@@ -266,7 +328,7 @@ export default function AarogyaNiwasPage() {
       osc.start();
       osc.stop(ctx.currentTime + 0.4);
     } catch {
-      // Autoplay rules
+      // Autoplay limitations
     }
   };
 
@@ -293,128 +355,6 @@ export default function AarogyaNiwasPage() {
 
     return () => clearInterval(interval);
   }, [soundEnabled]);
-
-  // ALL-INDIA DYNAMIC RESOLVER (Zero Network Failures)
-  const { resolvedHospitals, resolvedShelters, resolvedLocation } = useMemo(() => {
-    const q = searchTerm.trim();
-    if (!q) {
-      return {
-        resolvedHospitals: APEX_NATIONAL_HOSPITALS,
-        resolvedShelters: DEFAULT_SHELTERS,
-        resolvedLocation: null,
-      };
-    }
-
-    const lowerQ = q.toLowerCase();
-
-    // Check if query matches any known apex center
-    const matchedApex = APEX_NATIONAL_HOSPITALS.filter(
-      (h) =>
-        h.name.toLowerCase().includes(lowerQ) ||
-        h.districtOrTown.toLowerCase().includes(lowerQ) ||
-        h.state.toLowerCase().includes(lowerQ) ||
-        h.specialties.some((s) => s.toLowerCase().includes(lowerQ))
-    );
-
-    if (matchedApex.length > 0) {
-      return {
-        resolvedHospitals: matchedApex,
-        resolvedShelters: DEFAULT_SHELTERS.filter(
-          (s) =>
-            s.name.toLowerCase().includes(lowerQ) ||
-            s.hospitalNearby.toLowerCase().includes(lowerQ) ||
-            s.districtOrTown.toLowerCase().includes(lowerQ)
-        ).length > 0
-          ? DEFAULT_SHELTERS.filter(
-              (s) =>
-                s.name.toLowerCase().includes(lowerQ) ||
-                s.hospitalNearby.toLowerCase().includes(lowerQ) ||
-                s.districtOrTown.toLowerCase().includes(lowerQ)
-            )
-          : DEFAULT_SHELTERS,
-        resolvedLocation: q,
-      };
-    }
-
-    // Dynamic Generator for ANY District / Village / Pincode in India
-    const placeTitle = q.charAt(0).toUpperCase() + q.slice(1);
-    
-    // Determine plausible state context
-    let detectedState = "District Referral Zone";
-    if (lowerQ.includes("chhatarpur") || lowerQ.includes("panna") || lowerQ.includes("sagar") || lowerQ.includes("tikamgarh")) {
-      detectedState = "Madhya Pradesh (Bundelkhand Belt)";
-    } else if (lowerQ.includes("varanasi") || lowerQ.includes("gorakhpur") || lowerQ.includes("sultanpur") || lowerQ.includes("agra")) {
-      detectedState = "Uttar Pradesh";
-    } else if (lowerQ.includes("darbhanga") || lowerQ.includes("patna") || lowerQ.includes("gaya")) {
-      detectedState = "Bihar";
-    }
-
-    const generatedHospitals: Hospital[] = [
-      {
-        id: `dh-${lowerQ}`,
-        name: `District Referral Hospital (${placeTitle})`,
-        districtOrTown: `${placeTitle} Main Headquarters`,
-        state: detectedState,
-        tier: "District Hospital / Referral Center",
-        specialties: ["General Medicine", "Emergency & Trauma", "Maternal Health (Gynecology)", "Orthopedics", "Pediatrics"],
-        ayushmanEmpanelled: true,
-        bplQuota: true,
-        estCostRange: "Free under PM-JAY / ₹10 OPD Slip",
-        baseCost: 10,
-        contact: "108 / 102 (District Healthline)",
-        liveBeds: { generalAvailable: 42, generalTotal: 300, icuAvailable: 5, icuTotal: 24, lastUpdatedMinutesAgo: 2 },
-      },
-      {
-        id: `chc-${lowerQ}`,
-        name: `Community Health Centre (CHC), ${placeTitle} Rural Block`,
-        districtOrTown: `${placeTitle} Sub-Divisional Belt`,
-        state: detectedState,
-        tier: "Community Health Centre (CHC)",
-        specialties: ["General OPD", "Institutional Delivery", "Immunization", "First-Aid & Trauma"],
-        ayushmanEmpanelled: true,
-        bplQuota: true,
-        estCostRange: "100% Cashless (National Health Mission)",
-        baseCost: 0,
-        contact: "Block Medical Officer Desk",
-        liveBeds: { generalAvailable: 14, generalTotal: 50, icuAvailable: 1, icuTotal: 4, lastUpdatedMinutesAgo: 6 },
-      },
-      {
-        id: `phc-${lowerQ}`,
-        name: `Ayushman Arogya Mandir (Sub-District Unit), ${placeTitle}`,
-        districtOrTown: `${placeTitle} Gram Panchayat`,
-        state: detectedState,
-        tier: "Primary Health Centre (PHC)",
-        specialties: ["Primary Diagnostic Screening", "Generic Drug Dispensing", "Telemedicine Node"],
-        ayushmanEmpanelled: true,
-        bplQuota: true,
-        estCostRange: "Free under Ayushman Arogya Scheme",
-        baseCost: 0,
-        contact: "Community Health Officer (CHO)",
-        liveBeds: { generalAvailable: 4, generalTotal: 8, icuAvailable: 0, icuTotal: 0, lastUpdatedMinutesAgo: 9 },
-      },
-    ];
-
-    const generatedShelter: Shelter = {
-      id: `sarai-${lowerQ}`,
-      name: `District Red Cross Vishram Sadan (${placeTitle})`,
-      hospitalNearby: `District Referral Hospital (${placeTitle})`,
-      districtOrTown: placeTitle,
-      state: detectedState,
-      type: "Dharamshala / Vishram Sadan",
-      tariffPerNight: 30,
-      hasPatientKitchen: true,
-      wheelchairAccessible: true,
-      distanceKm: 0.4,
-      contact: "Red Cross District Secretary Office",
-      bedsAvailable: 18,
-    };
-
-    return {
-      resolvedHospitals: generatedHospitals,
-      resolvedShelters: [generatedShelter, ...DEFAULT_SHELTERS],
-      resolvedLocation: `${placeTitle} (${detectedState})`,
-    };
-  }, [searchTerm]);
 
   const triggerSosSimulation = async () => {
     playEmergencyBuzzer();
@@ -446,7 +386,7 @@ export default function AarogyaNiwasPage() {
     setTokenGenerated(token);
   };
 
-  const sampleAvgTariff = resolvedShelters[0]?.tariffPerNight ?? 50;
+  const sampleAvgTariff = displayShelters[0]?.tariffPerNight ?? 50;
   const stayCost = sampleAvgTariff * stayDurationDays;
   const commercialHotelCost = 1500 * stayDurationDays;
   const genericMedsCost = 450;
@@ -517,7 +457,7 @@ export default function AarogyaNiwasPage() {
         <section className="text-center py-4 sm:py-6 space-y-2.5 max-w-3xl mx-auto px-2">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-400">
             <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-            <span>All 800+ Districts & Villages Covered • 100% Cashless PM-JAY</span>
+            <span>Pan-India Live Geospatial Hospital Engine • PM-JAY Cashless Network</span>
           </div>
 
           <h1 className="font-serif text-3xl sm:text-5xl md:text-6xl text-white font-normal leading-tight">
@@ -535,17 +475,27 @@ export default function AarogyaNiwasPage() {
         {/* Universal Search Bar */}
         <div className="max-w-2xl mx-auto px-1 space-y-2">
           <div className="relative">
-            <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-emerald-400" />
+            {isSearchingLive ? (
+              <Loader2 className="absolute left-3.5 top-3.5 h-4 w-4 text-emerald-400 animate-spin" />
+            ) : (
+              <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-emerald-400" />
+            )}
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Type ANY Indian district, town, or village (e.g. Chhatarpur, Naugaon, Sultanpur, Darbhanga)..."
+              placeholder="Search real location (e.g., Chhatarpur, Naugaon, Darbhanga, Noida)..."
               className="w-full bg-[#131916] text-white text-xs sm:text-sm pl-10 pr-12 py-3 rounded-xl sm:rounded-2xl border border-white/20 focus:border-emerald-500 outline-none shadow-2xl transition placeholder-white/40"
             />
             {searchTerm && (
               <button
-                onClick={() => setSearchTerm("")}
+                onClick={() => {
+                  setSearchTerm("");
+                  setGeoHospitals(null);
+                  setGeoShelters(null);
+                  setLocationMatchedName(null);
+                  setIsInvalidLocation(false);
+                }}
                 className="absolute right-3.5 top-3 text-[11px] text-white/50 hover:text-white"
               >
                 Clear
@@ -553,10 +503,10 @@ export default function AarogyaNiwasPage() {
             )}
           </div>
 
-          {resolvedLocation && (
+          {locationMatchedName && (
             <div className="flex items-center gap-1.5 text-xs text-sky-400 px-2 font-mono">
               <Navigation className="h-3.5 w-3.5" />
-              <span>Public Health Infrastructure Mapped for: <b>{resolvedLocation}</b></span>
+              <span>Verified Geospatial Match: <b>{locationMatchedName}</b></span>
             </div>
           )}
         </div>
@@ -605,96 +555,114 @@ export default function AarogyaNiwasPage() {
                 </h3>
               </div>
               <span className="text-[11px] font-mono text-white/50">
-                {resolvedHospitals.length} Found
+                {isInvalidLocation ? 0 : displayHospitals.length} Found
               </span>
             </div>
 
-            {resolvedHospitals.map((hosp) => (
-              <div
-                key={hosp.id}
-                className="p-4 sm:p-5 rounded-2xl bg-[#131916] border border-white/10 hover:border-emerald-500/50 transition shadow-xl space-y-3"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-                        {hosp.tier}
-                      </span>
-                      {hosp.ayushmanEmpanelled && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          PM-JAY 100% Cashless
-                        </span>
-                      )}
-                    </div>
-                    <h4 className="font-serif text-base sm:text-lg font-bold text-white leading-snug">
-                      {hosp.name}
-                    </h4>
-                    <p className="text-[11px] text-white/60 flex items-center gap-1">
-                      <MapPin className="h-3 w-3 text-white/40 shrink-0" />
-                      <span>{hosp.districtOrTown} • <b>{hosp.state}</b></span>
-                    </p>
-                  </div>
-
-                  <div className="sm:text-right shrink-0 bg-white/5 sm:bg-transparent p-2 sm:p-0 rounded-xl">
-                    <span className="text-[9px] uppercase text-white/40 block">Hospital Cost</span>
-                    <span className="font-mono text-xs font-bold text-emerald-300">
-                      {hosp.estCostRange}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Live Bed Telemetry Strip */}
-                <div className="p-2.5 rounded-xl bg-[#18201c] border border-white/5 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <Bed className="h-3.5 w-3.5 text-sky-400 shrink-0" />
-                    <div>
-                      <span className="text-[9px] text-white/40 block uppercase">General Beds</span>
-                      <span className="font-mono font-bold text-white text-xs">
-                        {hosp.liveBeds.generalAvailable} / {hosp.liveBeds.generalTotal}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <Activity className="h-3.5 w-3.5 text-rose-400 shrink-0" />
-                    <div>
-                      <span className="text-[9px] text-white/40 block uppercase">ICU / HDU Beds</span>
-                      <span className="font-mono font-bold text-rose-300 text-xs">
-                        {hosp.liveBeds.icuAvailable} / {hosp.liveBeds.icuTotal}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="col-span-2 sm:col-span-1 flex items-center justify-between sm:justify-end gap-1.5 border-t sm:border-t-0 border-white/5 pt-1.5 sm:pt-0">
-                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      Sync: {hosp.liveBeds.lastUpdatedMinutesAgo}m ago
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {hosp.specialties.map((spec, i) => (
-                    <span
-                      key={i}
-                      className="text-[9px] font-medium px-2 py-0.5 rounded bg-white/5 text-white/70 border border-white/10"
-                    >
-                      {spec}
-                    </span>
-                  ))}
-                </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-2 border-t border-white/5 text-[11px]">
-                  <span className="text-white/50 font-mono text-[10px] sm:text-[11px]">Contact: {hosp.contact}</span>
-                  <a
-                    href={`tel:${hosp.contact}`}
-                    className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold text-xs"
-                  >
-                    <PhoneCall className="h-3 w-3" /> Call Hospital Desk
-                  </a>
-                </div>
+            {isInvalidLocation ? (
+              <div className="p-8 rounded-2xl bg-[#131916] border border-red-500/30 text-center space-y-2">
+                <p className="text-sm font-semibold text-red-400">No medical facilities found for "{searchTerm}"</p>
+                <p className="text-xs text-white/50">
+                  Please enter a valid Indian district, city, town, or village name (e.g. Chhatarpur, Naugaon, Darbhanga, Noida).
+                </p>
               </div>
-            ))}
+            ) : displayHospitals.length === 0 && isSearchingLive ? (
+              <div className="p-8 rounded-2xl bg-[#131916] border border-white/10 text-center text-xs text-white/50">
+                Scanning live geospatial map for registered hospitals...
+              </div>
+            ) : (
+              displayHospitals.map((hosp) => (
+                <div
+                  key={hosp.id}
+                  className="p-4 sm:p-5 rounded-2xl bg-[#131916] border border-white/10 hover:border-emerald-500/50 transition shadow-xl space-y-3"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                          {hosp.tier}
+                        </span>
+                        {hosp.ayushmanEmpanelled && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            PM-JAY 100% Cashless
+                          </span>
+                        )}
+                        {hosp.id.startsWith("osm-") && (
+                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                            Live Mapped Node
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-serif text-base sm:text-lg font-bold text-white leading-snug">
+                        {hosp.name}
+                      </h4>
+                      <p className="text-[11px] text-white/60 flex items-center gap-1">
+                        <MapPin className="h-3 w-3 text-white/40 shrink-0" />
+                        <span>{hosp.districtOrTown}</span>
+                      </p>
+                    </div>
+
+                    <div className="sm:text-right shrink-0 bg-white/5 sm:bg-transparent p-2 sm:p-0 rounded-xl">
+                      <span className="text-[9px] uppercase text-white/40 block">Hospital Cost</span>
+                      <span className="font-mono text-xs font-bold text-emerald-300">
+                        {hosp.estCostRange}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Live Bed Telemetry Strip */}
+                  <div className="p-2.5 rounded-xl bg-[#18201c] border border-white/5 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Bed className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                      <div>
+                        <span className="text-[9px] text-white/40 block uppercase">General Beds</span>
+                        <span className="font-mono font-bold text-white text-xs">
+                          {hosp.liveBeds.generalAvailable} / {hosp.liveBeds.generalTotal}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <Activity className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                      <div>
+                        <span className="text-[9px] text-white/40 block uppercase">ICU / HDU Beds</span>
+                        <span className="font-mono font-bold text-rose-300 text-xs">
+                          {hosp.liveBeds.icuAvailable} / {hosp.liveBeds.icuTotal}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="col-span-2 sm:col-span-1 flex items-center justify-between sm:justify-end gap-1.5 border-t sm:border-t-0 border-white/5 pt-1.5 sm:pt-0">
+                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Sync: {hosp.liveBeds.lastUpdatedMinutesAgo}m ago
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {hosp.specialties.map((spec, i) => (
+                      <span
+                        key={i}
+                        className="text-[9px] font-medium px-2 py-0.5 rounded bg-white/5 text-white/70 border border-white/10"
+                      >
+                        {spec}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-2 border-t border-white/5 text-[11px]">
+                    <span className="text-white/50 font-mono text-[10px] sm:text-[11px]">Contact: {hosp.contact}</span>
+                    <a
+                      href={`tel:${hosp.contact}`}
+                      className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold text-xs"
+                    >
+                      <PhoneCall className="h-3 w-3" /> Call Hospital Desk
+                    </a>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           {/* Right Column: Subsidized Shelters */}
@@ -707,11 +675,11 @@ export default function AarogyaNiwasPage() {
                 </h3>
               </div>
               <span className="text-[11px] font-mono text-white/50">
-                {resolvedShelters.length} Available
+                {isInvalidLocation ? 0 : displayShelters.length} Available
               </span>
             </div>
 
-            {resolvedShelters.map((shelter) => {
+            {!isInvalidLocation && displayShelters.map((shelter) => {
               const totalStayCost = shelter.tariffPerNight * stayDurationDays;
               return (
                 <div
@@ -1054,7 +1022,7 @@ export default function AarogyaNiwasPage() {
             <span className="font-serif font-bold text-white">AarogyaNiwas</span>
             <span>• SIH 2026</span>
           </div>
-          <p>Universal Pan-India Healthcare Transit & Bedside Recovery Network.</p>
+          <p>Pan-India Universal Healthcare Transit & Bedside Recovery Network.</p>
         </footer>
       </div>
     </div>
