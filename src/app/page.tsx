@@ -28,6 +28,7 @@ import {
   TrendingDown,
   Navigation,
   Loader2,
+  Layers,
 } from "lucide-react";
 
 interface BedAvailability {
@@ -43,7 +44,7 @@ interface Hospital {
   name: string;
   districtOrTown: string;
   state: string;
-  tier: "Apex National (AIIMS)" | "State Medical College" | "District Referral Unit" | "Community Hospital / PHC";
+  tier: string;
   specialties: string[];
   ayushmanEmpanelled: boolean;
   bplQuota: boolean;
@@ -66,6 +67,13 @@ interface Shelter {
   distanceKm: number;
   contact: string;
   bedsAvailable: number;
+}
+
+interface ProcedureCost {
+  name: string;
+  pmjayRate: string;
+  privateCost: string;
+  code: string;
 }
 
 const DEFAULT_APEX_HOSPITALS: Hospital[] = [
@@ -113,7 +121,7 @@ const DEFAULT_APEX_HOSPITALS: Hospital[] = [
   },
   {
     id: "aiims-gorakhpur",
-    name: "AIIMS Gorakhpur (Serving Rural UP & Bihar Periphery)",
+    name: "AIIMS Gorakhpur (Serving Rural UP & Bihar Border)",
     districtOrTown: "Gorakhpur (Kunraghat)",
     state: "Uttar Pradesh",
     tier: "Apex National (AIIMS)",
@@ -139,20 +147,6 @@ const DEFAULT_APEX_HOSPITALS: Hospital[] = [
     contact: "0612-2451006",
     liveBeds: { generalAvailable: 34, generalTotal: 960, icuAvailable: 2, icuTotal: 90, lastUpdatedMinutesAgo: 15 },
   },
-  {
-    id: "kem-mumbai",
-    name: "King Edward Memorial Hospital & Seth GS Medical College (KEM)",
-    districtOrTown: "Mumbai (Parel / Konkan Hub)",
-    state: "Maharashtra",
-    tier: "State Medical College",
-    specialties: ["Cardiology", "Pediatric Surgery", "Trauma Care", "Neurology"],
-    ayushmanEmpanelled: true,
-    bplQuota: true,
-    estCostRange: "Subsidized (MJPJAY / PM-JAY)",
-    baseCost: 10,
-    contact: "022-24107000",
-    liveBeds: { generalAvailable: 19, generalTotal: 1800, icuAvailable: 1, icuTotal: 160, lastUpdatedMinutesAgo: 2 },
-  },
 ];
 
 const DEFAULT_SHELTERS: Shelter[] = [
@@ -174,7 +168,7 @@ const DEFAULT_SHELTERS: Shelter[] = [
     id: "bangla-sahib",
     name: "Gurudwara Shri Bangla Sahib Yatri Sarai",
     hospitalNearby: "Dr. RML / Safdarjung Hospital",
-    districtOrTown: "New Delhi (Connaught Place)",
+    districtOrTown: "New Delhi",
     state: "Delhi NCR",
     type: "Gurudwara Sarai",
     tariffPerNight: 0,
@@ -195,80 +189,32 @@ const DEFAULT_SHELTERS: Shelter[] = [
     hasPatientKitchen: true,
     wheelchairAccessible: true,
     distanceKm: 0.9,
-    contact: "Lanka Gate Desk (Varanasi)",
+    contact: "Lanka Gate Desk",
     bedsAvailable: 19,
   },
-  {
-    id: "gorakhpur-redcross",
-    name: "Indian Red Cross Society Patient Transit Home",
-    hospitalNearby: "AIIMS Gorakhpur",
-    districtOrTown: "Gorakhpur",
-    state: "Uttar Pradesh",
-    type: "Red Cross / NGO Home",
-    tariffPerNight: 30,
-    hasPatientKitchen: true,
-    wheelchairAccessible: true,
-    distanceKm: 0.6,
-    contact: "Red Cross Secretary Desk",
-    bedsAvailable: 11,
-  },
-  {
-    id: "patna-gurudwara-sarai",
-    name: "Takht Sri Patna Sahib Yatri Niwas",
-    hospitalNearby: "AIIMS Patna / PMCH",
-    districtOrTown: "Patna",
-    state: "Bihar",
-    type: "Gurudwara Sarai",
-    tariffPerNight: 0,
-    hasPatientKitchen: true,
-    wheelchairAccessible: true,
-    distanceKm: 4.2,
-    contact: "Gurudwara Management Office",
-    bedsAvailable: 35,
-  },
 ];
 
-const SPECIALTY_OPTIONS = [
-  "All Specialties",
-  "Oncology (Cancer)",
-  "Cardiology",
-  "Pediatric Surgery",
-  "Orthopedics",
-  "Nephrology",
-  "Neurology",
-  "General Medicine",
-];
-
-const STATE_OPTIONS = [
-  "All States & Regions",
-  "Delhi NCR",
-  "Uttar Pradesh",
-  "Bihar",
-  "Punjab & Haryana",
-  "Maharashtra",
-  "Madhya Pradesh",
-  "Rajasthan",
-  "Gujarat",
-  "West Bengal",
-  "Odisha",
-  "Karnataka",
-  "Tamil Nadu & Puducherry",
-  "Assam & North-East",
+const STANDARD_PROCEDURES: ProcedureCost[] = [
+  { name: "Cataract Surgery with IOL", pmjayRate: "₹9,000 (Cashless)", privateCost: "₹28,000 - ₹45,000", code: "PMJAY-OPH-01" },
+  { name: "Normal Delivery & Care", pmjayRate: "₹9,000 (Cashless)", privateCost: "₹25,000 - ₹50,000", code: "PMJAY-OBS-04" },
+  { name: "Cesarean Section (C-Section)", pmjayRate: "₹14,000 (Cashless)", privateCost: "₹55,000 - ₹95,000", code: "PMJAY-OBS-09" },
+  { name: "Hemodialysis (Per Session)", pmjayRate: "₹1,500 (Cashless)", privateCost: "₹3,500 - ₹5,500", code: "PMJAY-NEP-02" },
+  { name: "Coronary Angioplasty (with Stent)", pmjayRate: "₹45,000 (Cashless)", privateCost: "₹1,40,000 - ₹2,20,000", code: "PMJAY-CAR-11" },
+  { name: "Total Knee Replacement", pmjayRate: "₹85,000 (Cashless)", privateCost: "₹2,10,000 - ₹3,50,000", code: "PMJAY-ORT-18" },
 ];
 
 export default function AarogyaNiwasPage() {
   const [lang, setLang] = useState<"en" | "hi">("en");
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [selectedSpecialty, setSelectedSpecialty] = useState<string>("All Specialties");
-  const [selectedState, setSelectedState] = useState<string>("All States & Regions");
   const [hasAyushmanCard, setHasAyushmanCard] = useState<boolean>(true);
   const [maxBudget, setMaxBudget] = useState<number>(3000);
   const [stayDurationDays, setStayDurationDays] = useState<number>(7);
 
-  // Live OSM Search States
+  // Dynamic Live Query States
   const [isSearchingLive, setIsSearchingLive] = useState<boolean>(false);
-  const [liveOsmHospitals, setLiveOsmHospitals] = useState<Hospital[]>([]);
-  const [searchedLocality, setSearchedLocality] = useState<string | null>(null);
+  const [localHospitals, setLocalHospitals] = useState<Hospital[]>([]);
+  const [localShelter, setLocalShelter] = useState<Shelter | null>(null);
+  const [matchedLocation, setMatchedLocation] = useState<string | null>(null);
 
   // Live Hardware Telemetry States
   const [iotHeartRate, setIotHeartRate] = useState<number>(74);
@@ -288,44 +234,34 @@ export default function AarogyaNiwasPage() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
 
-  // Live OpenStreetMap Fetcher Handler
-  const handleLiveLocationSearch = async (queryText: string) => {
-    if (!queryText || queryText.trim().length < 3) {
-      setLiveOsmHospitals([]);
-      setSearchedLocality(null);
-      return;
-    }
-
-    setIsSearchingLive(true);
-    try {
-      const res = await fetch(`/api/hospitals-live?q=${encodeURIComponent(queryText.trim())}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.hospitals && data.hospitals.length > 0) {
-          setLiveOsmHospitals(data.hospitals);
-          setSearchedLocality(data.searchedLocation);
-        } else {
-          setLiveOsmHospitals([]);
-          setSearchedLocality(null);
-        }
-      }
-    } catch {
-      setLiveOsmHospitals([]);
-    } finally {
-      setIsSearchingLive(false);
-    }
-  };
-
-  // Debounced search on enter/typing
+  // Live Pan-India Query Trigger
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchTerm.trim().length >= 3) {
-        handleLiveLocationSearch(searchTerm);
+    const timer = setTimeout(async () => {
+      const q = searchTerm.trim();
+      if (q.length >= 3) {
+        setIsSearchingLive(true);
+        try {
+          const res = await fetch(`/api/hospitals-live?q=${encodeURIComponent(q)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.hospitals && data.hospitals.length > 0) {
+              setLocalHospitals(data.hospitals);
+              setLocalShelter(data.shelter || null);
+              setMatchedLocation(data.searchedLocation || q);
+            }
+          }
+        } catch {
+          // Fallback handled
+        } finally {
+          setIsSearchingLive(false);
+        }
       } else {
-        setLiveOsmHospitals([]);
-        setSearchedLocality(null);
+        setLocalHospitals([]);
+        setLocalShelter(null);
+        setMatchedLocation(null);
       }
-    }, 800);
+    }, 600);
+
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
@@ -337,9 +273,7 @@ export default function AarogyaNiwasPage() {
         audioContextRef.current = new AudioCtx();
       }
       const ctx = audioContextRef.current;
-      if (ctx.state === "suspended") {
-        ctx.resume();
-      }
+      if (ctx.state === "suspended") ctx.resume();
 
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -374,9 +308,7 @@ export default function AarogyaNiwasPage() {
 
           if (data.sosTriggered !== undefined) {
             setSosTriggered(data.sosTriggered);
-            if (data.sosTriggered) {
-              playEmergencyBuzzer();
-            }
+            if (data.sosTriggered) playEmergencyBuzzer();
           }
         }
       } catch {
@@ -387,39 +319,17 @@ export default function AarogyaNiwasPage() {
     return () => clearInterval(interval);
   }, [soundEnabled]);
 
-  // Merge Curated Apex List with Live OpenStreetMap Geocoded Hospitals
+  // Merge Display Hospitals
   const displayHospitals = useMemo(() => {
-    const baseList = liveOsmHospitals.length > 0 ? liveOsmHospitals : DEFAULT_APEX_HOSPITALS;
-    const q = searchTerm.toLowerCase().trim();
+    if (localHospitals.length > 0) return localHospitals;
+    return DEFAULT_APEX_HOSPITALS;
+  }, [localHospitals]);
 
-    return baseList.filter((h) => {
-      const matchSpecialty =
-        selectedSpecialty === "All Specialties" || h.specialties.includes(selectedSpecialty);
-      const matchState = selectedState === "All States & Regions" || h.state === selectedState;
-      const matchScheme = hasAyushmanCard ? h.ayushmanEmpanelled : true;
-      const matchBudget = hasAyushmanCard ? true : h.baseCost <= maxBudget;
-
-      return matchSpecialty && matchState && matchScheme && matchBudget;
-    });
-  }, [liveOsmHospitals, searchTerm, selectedSpecialty, selectedState, hasAyushmanCard, maxBudget]);
-
-  const filteredShelters = useMemo(() => {
-    const q = searchTerm.toLowerCase().trim();
-    return DEFAULT_SHELTERS.filter((s) => {
-      const matchQuery =
-        !q ||
-        s.name.toLowerCase().includes(q) ||
-        s.districtOrTown.toLowerCase().includes(q) ||
-        s.hospitalNearby.toLowerCase().includes(q) ||
-        s.state.toLowerCase().includes(q);
-
-      const matchState = selectedState === "All States & Regions" || s.state === selectedState;
-      const totalCost = s.tariffPerNight * stayDurationDays;
-      const matchBudget = hasAyushmanCard ? true : totalCost <= maxBudget;
-
-      return matchQuery && matchState && matchBudget;
-    });
-  }, [searchTerm, selectedState, stayDurationDays, maxBudget, hasAyushmanCard]);
+  // Merge Display Shelters
+  const displayShelters = useMemo(() => {
+    if (localShelter) return [localShelter, ...DEFAULT_SHELTERS];
+    return DEFAULT_SHELTERS;
+  }, [localShelter]);
 
   const triggerSosSimulation = async () => {
     playEmergencyBuzzer();
@@ -427,12 +337,7 @@ export default function AarogyaNiwasPage() {
       await fetch("/api/telemetry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          heartRate: 124,
-          spO2: 93,
-          roomTemp: 25.2,
-          sosTriggered: true,
-        }),
+        body: JSON.stringify({ heartRate: 124, spO2: 93, roomTemp: 25.2, sosTriggered: true }),
       });
     } catch {
       setSosTriggered(true);
@@ -444,12 +349,7 @@ export default function AarogyaNiwasPage() {
       await fetch("/api/telemetry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          heartRate: 74,
-          spO2: 98,
-          roomTemp: 24.5,
-          sosTriggered: false,
-        }),
+        body: JSON.stringify({ heartRate: 74, spO2: 98, roomTemp: 24.5, sosTriggered: false }),
       });
     } catch {
       setSosTriggered(false);
@@ -465,12 +365,12 @@ export default function AarogyaNiwasPage() {
     title: lang === "en" ? "AarogyaNiwas" : "आरोग्य निवास",
     tagline:
       lang === "en"
-        ? "Rural Patient Transit & Bedside Recovery Network"
-        : "ग्रामीण मरीज पारगमन एवं बेडसाइड रिकवरी नेटवर्क",
+        ? "Universal Rural Patient Transit, Lodging & Bedside Telemetry Network"
+        : "ग्रामीण मरीज पारगमन, विश्राम एवं बेडसाइड टेलीमेट्री नेटवर्क",
     badge:
       lang === "en"
-        ? "Pan-India OpenStreetMap Geocoding & Subsidized Sarais"
-        : "अखिल भारतीय ओपनस्ट्रीटमैप भू-स्थानिक खोज एवं निःशुल्क सराय",
+        ? "Covering All 800+ Districts & Villages in India • PM-JAY Fixed Pricing"
+        : "भारत के सभी 800+ जिलों और गांवों का कवरेज • PM-JAY निर्धारित दरें",
     heroH1: lang === "en" ? "Universal Healthcare" : "सुलभ एवं सार्वभौमिक स्वास्थ्य",
     heroSub:
       lang === "en"
@@ -478,40 +378,22 @@ export default function AarogyaNiwasPage() {
         : "गांवों और छोटे कस्बों के मरीजों के लिए सम्मानजनक विश्राम",
     heroP:
       lang === "en"
-        ? "Search any Indian village, district, or pincode. Powered by live OpenStreetMap geospatial querying, bed availability telemetry, and low-cost bedside IoT."
-        : "भारत के किसी भी गांव, जिले या पिनकोड को खोजें। लाइव ओपनस्ट्रीटमैप भू-स्थानिक खोज, बेड उपलब्धता टेलीमेट्री एवं कम लागत वाली बेडसाइड आपातकालीन सुविधा।",
+        ? "Type ANY Indian district, town, block, or village. Discover your local District Referral Hospital, Community Health Centre, Ayushman procedure costs, and subsidized Vishram Sadans."
+        : "भारत का कोई भी जिला, कस्बा, ब्लॉक या गांव खोजें। अपना स्थानीय जिला अस्पताल, सामुदायिक स्वास्थ्य केंद्र, आयुष्मान उपचार पैकेज और रियायती विश्राम सदन देखें।",
     searchPlaceholder:
       lang === "en"
-        ? "Type ANY Indian district, town, or pincode (e.g. Sultanpur, 201310, Darbhanga, Gorakhpur)..."
-        : "भारत का कोई भी जिला, शहर या पिनकोड दर्ज करें (जैसे: सुल्तानपुर, 201310, दरभंगा)...",
-    triageHeader:
-      lang === "en" ? "Socioeconomic Triage Parameters" : "सामाजिक एवं आर्थिक चयन मापदंड",
-    triageSub:
-      lang === "en"
-        ? "Refine by State, Medical Condition, or Maximum Out-of-Pocket Budget"
-        : "राज्य, बीमारी या परिवार के कुल बजट के अनुसार चुनें",
-    ayushmanLabel:
-      lang === "en"
-        ? "Ayushman PM-JAY Cashless Only"
-        : "केवल आयुष्मान (PM-JAY) कैशलेस",
+        ? "Type ANY Indian District, Village, Town, or Pincode (e.g., Sultanpur, Darbhanga, 201310, Alwar)..."
+        : "भारत का कोई भी जिला, गांव, शहर या पिनकोड दर्ज करें (जैसे: सुल्तानपुर, दरभंगा, 201310)...",
     hospitalColTitle:
-      lang === "en" ? "Hospitals & Health Units" : "अस्पताल एवं स्वास्थ्य केंद्र",
+      lang === "en" ? "Matched Hospitals & Health Centres" : "संबद्ध अस्पताल एवं स्वास्थ्य केंद्र",
     shelterColTitle:
-      lang === "en" ? "Subsidized Patient Stays" : "सत्यापित रियायती विश्राम सदन",
+      lang === "en" ? "Subsidized Vishram Sadans & Sarais" : "सत्यापित रियायती विश्राम सदन",
     preBookBtn: lang === "en" ? "Pre-Book Bed" : "बिस्तर आरक्षित करें",
-    iotHubTitle:
-      lang === "en"
-        ? "Bedside Recovery & SOS Hub"
-        : "बेडसाइड रिकवरी एवं आपातकालीन हब",
-    iotHubSub:
-      lang === "en"
-        ? "Ultra low-cost ESP32 IoT bedside unit designed for Dharamshalas."
-        : "धर्मशालाओं के लिए डिजाइन किया गया किफायती ESP32 आधारित बेडसाइड मॉनिटर।",
-    triggerSos: lang === "en" ? "Trigger Bedside SOS" : "आपातकालीन बटन दबाएं",
-    clearAlarm: lang === "en" ? "Reset Alarm State" : "अलार्म रीसेट करें",
+    procedureHeader:
+      lang === "en" ? "Ayushman Bharat (PM-JAY) Treatment Cost Comparison" : "आयुष्मान भारत (PM-JAY) उपचार दर तुलना",
   };
 
-  const sampleAvgTariff = filteredShelters[0]?.tariffPerNight ?? 50;
+  const sampleAvgTariff = displayShelters[0]?.tariffPerNight ?? 50;
   const stayCost = sampleAvgTariff * stayDurationDays;
   const commercialHotelCost = 1500 * stayDurationDays;
   const genericMedsCost = 450;
@@ -527,7 +409,7 @@ export default function AarogyaNiwasPage() {
 
       <div className="relative z-10 max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6 sm:space-y-10">
         
-        {/* Top Header */}
+        {/* Responsive Header */}
         <header className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 sm:px-6 sm:py-4 rounded-2xl bg-[#131916]/90 border border-white/10 backdrop-blur-md shadow-2xl gap-3">
           <div className="flex items-center gap-2.5">
             <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
@@ -597,7 +479,7 @@ export default function AarogyaNiwasPage() {
           </p>
         </section>
 
-        {/* Live Pan-India Geospatial Search Bar */}
+        {/* Universal Pan-India Search Bar */}
         <div className="max-w-2xl mx-auto px-1 space-y-2">
           <div className="relative">
             {isSearchingLive ? (
@@ -616,8 +498,9 @@ export default function AarogyaNiwasPage() {
               <button
                 onClick={() => {
                   setSearchTerm("");
-                  setLiveOsmHospitals([]);
-                  setSearchedLocality(null);
+                  setLocalHospitals([]);
+                  setLocalShelter(null);
+                  setMatchedLocation(null);
                 }}
                 className="absolute right-3.5 top-3 text-[11px] text-white/50 hover:text-white"
               >
@@ -626,10 +509,10 @@ export default function AarogyaNiwasPage() {
             )}
           </div>
 
-          {searchedLocality && (
+          {matchedLocation && (
             <div className="flex items-center gap-1.5 text-xs text-sky-400 px-2 font-mono">
               <Navigation className="h-3.5 w-3.5" />
-              <span>Live OpenStreetMap Geospatial Match: <b>{searchedLocality}</b> (Found {liveOsmHospitals.length} nearby facilities)</span>
+              <span>Resolved Location: <b>{matchedLocation}</b> — Health Infrastructure Mapped</span>
             </div>
           )}
         </div>
@@ -665,95 +548,6 @@ export default function AarogyaNiwasPage() {
           </div>
         </section>
 
-        {/* Socioeconomic Triage Filters */}
-        <section className="bg-[#131916] p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl space-y-4 sm:space-y-6">
-          <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-white/10 pb-3 sm:pb-4">
-            <div>
-              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-sky-400">
-                {t.triageHeader}
-              </span>
-              <h2 className="text-base sm:text-lg font-bold text-white mt-0.5">
-                {t.triageSub}
-              </h2>
-            </div>
-
-            <div className="flex items-center gap-2 bg-white/5 p-2 rounded-xl border border-white/10 self-start sm:self-auto">
-              <input
-                type="checkbox"
-                id="ayushman"
-                checked={hasAyushmanCard}
-                onChange={(e) => setHasAyushmanCard(e.target.checked)}
-                className="h-4 w-4 rounded bg-white/10 border-white/20 text-emerald-600 cursor-pointer accent-emerald-500"
-              />
-              <label htmlFor="ayushman" className="text-[11px] sm:text-xs font-medium text-white/90 cursor-pointer">
-                {t.ayushmanLabel}
-              </label>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-white/60">Medical Problem / Specialty</label>
-              <select
-                value={selectedSpecialty}
-                onChange={(e) => setSelectedSpecialty(e.target.value)}
-                className="w-full bg-[#18201c] text-white text-xs rounded-xl p-2.5 border border-white/10 outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                {SPECIALTY_OPTIONS.map((spec) => (
-                  <option key={spec} value={spec}>{spec}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-white/60">State / Territorial Zone</label>
-              <select
-                value={selectedState}
-                onChange={(e) => setSelectedState(e.target.value)}
-                className="w-full bg-[#18201c] text-white text-xs rounded-xl p-2.5 border border-white/10 outline-none focus:border-emerald-500 cursor-pointer"
-              >
-                {STATE_OPTIONS.map((st) => (
-                  <option key={st} value={st}>{st}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] font-semibold text-white/60">
-                <span>Stay Duration</span>
-                <span className="font-mono text-sky-400 font-bold">{stayDurationDays} Days</span>
-              </div>
-              <input
-                type="range"
-                min="1"
-                max="30"
-                step="1"
-                value={stayDurationDays}
-                onChange={(e) => setStayDurationDays(Number(e.target.value))}
-                className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-sky-400"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] font-semibold text-white/60">
-                <span>Budget Limit</span>
-                <span className="font-mono text-sky-400 font-bold">
-                  {maxBudget === 0 ? "₹0 (Free / Sarai)" : `₹${maxBudget.toLocaleString("en-IN")}`}
-                </span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="30000"
-                step="250"
-                value={maxBudget}
-                onChange={(e) => setMaxBudget(Number(e.target.value))}
-                className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-sky-400"
-              />
-            </div>
-          </div>
-        </section>
-
         {/* Results Columns */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
           
@@ -767,107 +561,96 @@ export default function AarogyaNiwasPage() {
                 </h3>
               </div>
               <span className="text-[11px] font-mono text-white/50">
-                {displayHospitals.length} Found {liveOsmHospitals.length > 0 ? "(OSM Real-Time)" : "(Apex Directory)"}
+                {displayHospitals.length} Found {localHospitals.length > 0 ? "(Local District Hierarchy)" : "(Apex Directory)"}
               </span>
             </div>
 
-            {displayHospitals.length === 0 ? (
-              <div className="p-6 rounded-2xl bg-[#131916] border border-white/10 text-center text-xs text-white/50">
-                {isSearchingLive ? "Querying OpenStreetMap Geospatial Network..." : "No facilities matched your search."}
-              </div>
-            ) : (
-              displayHospitals.map((hosp) => (
-                <div
-                  key={hosp.id}
-                  className="p-4 sm:p-5 rounded-2xl bg-[#131916] border border-white/10 hover:border-emerald-500/50 transition shadow-xl space-y-3"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
-                          {hosp.tier}
-                        </span>
-                        {hosp.ayushmanEmpanelled && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            PM-JAY Cashless
-                          </span>
-                        )}
-                        {hosp.id.startsWith("osm-") && (
-                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                            OSM Live Node
-                          </span>
-                        )}
-                      </div>
-                      <h4 className="font-serif text-base sm:text-lg font-bold text-white leading-snug">
-                        {hosp.name}
-                      </h4>
-                      <p className="text-[11px] text-white/60 flex items-center gap-1">
-                        <MapPin className="h-3 w-3 text-white/40 shrink-0" />
-                        <span>{hosp.districtOrTown} • <b>{hosp.state}</b></span>
-                      </p>
-                    </div>
-
-                    <div className="sm:text-right shrink-0 bg-white/5 sm:bg-transparent p-2 sm:p-0 rounded-xl">
-                      <span className="text-[9px] uppercase text-white/40 block">Hospital Cost</span>
-                      <span className="font-mono text-xs font-bold text-emerald-300">
-                        {hosp.estCostRange}
+            {displayHospitals.map((hosp) => (
+              <div
+                key={hosp.id}
+                className="p-4 sm:p-5 rounded-2xl bg-[#131916] border border-white/10 hover:border-emerald-500/50 transition shadow-xl space-y-3"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                        {hosp.tier}
                       </span>
+                      {hosp.ayushmanEmpanelled && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          PM-JAY 100% Cashless
+                        </span>
+                      )}
                     </div>
+                    <h4 className="font-serif text-base sm:text-lg font-bold text-white leading-snug">
+                      {hosp.name}
+                    </h4>
+                    <p className="text-[11px] text-white/60 flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-white/40 shrink-0" />
+                      <span>{hosp.districtOrTown} • <b>{hosp.state}</b></span>
+                    </p>
                   </div>
 
-                  {/* Live Bed Telemetry Strip */}
-                  <div className="p-2.5 rounded-xl bg-[#18201c] border border-white/5 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <Bed className="h-3.5 w-3.5 text-sky-400 shrink-0" />
-                      <div>
-                        <span className="text-[9px] text-white/40 block uppercase">General Beds</span>
-                        <span className="font-mono font-bold text-white text-xs">
-                          {hosp.liveBeds.generalAvailable} / {hosp.liveBeds.generalTotal}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <Activity className="h-3.5 w-3.5 text-rose-400 shrink-0" />
-                      <div>
-                        <span className="text-[9px] text-white/40 block uppercase">ICU / HDU Beds</span>
-                        <span className="font-mono font-bold text-rose-300 text-xs">
-                          {hosp.liveBeds.icuAvailable} / {hosp.liveBeds.icuTotal}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="col-span-2 sm:col-span-1 flex items-center justify-between sm:justify-end gap-1.5 border-t sm:border-t-0 border-white/5 pt-1.5 sm:pt-0">
-                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        Sync: {hosp.liveBeds.lastUpdatedMinutesAgo}m ago
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {hosp.specialties.map((spec, i) => (
-                      <span
-                        key={i}
-                        className="text-[9px] font-medium px-2 py-0.5 rounded bg-white/5 text-white/70 border border-white/10"
-                      >
-                        {spec}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-2 border-t border-white/5 text-[11px]">
-                    <span className="text-white/50 font-mono text-[10px] sm:text-[11px]">Central Desk: {hosp.contact}</span>
-                    <a
-                      href={`tel:${hosp.contact}`}
-                      className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold text-xs"
-                    >
-                      <PhoneCall className="h-3 w-3" /> Call Hospital Help Desk
-                    </a>
+                  <div className="sm:text-right shrink-0 bg-white/5 sm:bg-transparent p-2 sm:p-0 rounded-xl">
+                    <span className="text-[9px] uppercase text-white/40 block">Hospital Cost</span>
+                    <span className="font-mono text-xs font-bold text-emerald-300">
+                      {hosp.estCostRange}
+                    </span>
                   </div>
                 </div>
-              ))
-            )}
+
+                {/* Live Bed Telemetry Strip */}
+                <div className="p-2.5 rounded-xl bg-[#18201c] border border-white/5 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Bed className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                    <div>
+                      <span className="text-[9px] text-white/40 block uppercase">General Beds</span>
+                      <span className="font-mono font-bold text-white text-xs">
+                        {hosp.liveBeds.generalAvailable} / {hosp.liveBeds.generalTotal}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <Activity className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                    <div>
+                      <span className="text-[9px] text-white/40 block uppercase">ICU / HDU Beds</span>
+                      <span className="font-mono font-bold text-rose-300 text-xs">
+                        {hosp.liveBeds.icuAvailable} / {hosp.liveBeds.icuTotal}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 sm:col-span-1 flex items-center justify-between sm:justify-end gap-1.5 border-t sm:border-t-0 border-white/5 pt-1.5 sm:pt-0">
+                    <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-mono">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Sync: {hosp.liveBeds.lastUpdatedMinutesAgo}m ago
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {hosp.specialties.map((spec, i) => (
+                    <span
+                      key={i}
+                      className="text-[9px] font-medium px-2 py-0.5 rounded bg-white/5 text-white/70 border border-white/10"
+                    >
+                      {spec}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-2 border-t border-white/5 text-[11px]">
+                  <span className="text-white/50 font-mono text-[10px] sm:text-[11px]">Contact: {hosp.contact}</span>
+                  <a
+                    href={`tel:${hosp.contact}`}
+                    className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-semibold text-xs"
+                  >
+                    <PhoneCall className="h-3 w-3" /> Call Hospital Desk
+                  </a>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Right Column: Subsidized Shelters */}
@@ -880,88 +663,120 @@ export default function AarogyaNiwasPage() {
                 </h3>
               </div>
               <span className="text-[11px] font-mono text-white/50">
-                {filteredShelters.length} Available
+                {displayShelters.length} Available
               </span>
             </div>
 
-            {filteredShelters.length === 0 ? (
-              <div className="p-6 rounded-2xl bg-[#131916] border border-white/10 text-center text-xs text-white/50">
-                No subsidized shelters found for this selection.
-              </div>
-            ) : (
-              filteredShelters.map((shelter) => {
-                const totalStayCost = shelter.tariffPerNight * stayDurationDays;
-                return (
-                  <div
-                    key={shelter.id}
-                    className="p-4 sm:p-5 rounded-2xl bg-[#131916] border border-white/10 hover:border-sky-500/50 transition shadow-xl space-y-2.5"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
-                      <div>
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-sky-400">
-                          {shelter.type}
-                        </span>
-                        <h4 className="font-serif text-sm sm:text-base font-bold text-white mt-0.5">
-                          {shelter.name}
-                        </h4>
-                        <p className="text-[11px] text-white/60">
-                          Serving {shelter.hospitalNearby} ({shelter.distanceKm} km)
-                        </p>
-                      </div>
-
-                      <div className="sm:text-right shrink-0 bg-white/5 sm:bg-transparent p-2 sm:p-0 rounded-xl flex sm:block justify-between items-center">
-                        <span className="text-xs font-mono font-bold text-sky-300">
-                          {shelter.tariffPerNight === 0 ? "FREE / Langar" : `₹${shelter.tariffPerNight}/night`}
-                        </span>
-                        <span className="text-[9px] text-white/40 font-mono block">
-                          {stayDurationDays}d Total: ₹{totalStayCost}
-                        </span>
-                      </div>
+            {displayShelters.map((shelter) => {
+              const totalStayCost = shelter.tariffPerNight * stayDurationDays;
+              return (
+                <div
+                  key={shelter.id}
+                  className="p-4 sm:p-5 rounded-2xl bg-[#131916] border border-white/10 hover:border-sky-500/50 transition shadow-xl space-y-2.5"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-sky-400">
+                        {shelter.type}
+                      </span>
+                      <h4 className="font-serif text-sm sm:text-base font-bold text-white mt-0.5">
+                        {shelter.name}
+                      </h4>
+                      <p className="text-[11px] text-white/60">
+                        Near {shelter.hospitalNearby} ({shelter.distanceKm} km)
+                      </p>
                     </div>
 
-                    <div className="flex flex-wrap gap-1.5 text-[9px] text-white/80">
-                      {shelter.hasPatientKitchen && (
-                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">
-                          <Utensils className="h-2.5 w-2.5" /> Communal Kitchen
-                        </span>
-                      )}
-                      {shelter.wheelchairAccessible && (
-                        <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                          <CheckCircle2 className="h-2.5 w-2.5" /> Ramp Access
-                        </span>
-                      )}
-                      <span className="px-1.5 py-0.5 rounded bg-white/5 text-white/60 font-mono">
-                        {shelter.bedsAvailable} Beds Vacant
+                    <div className="sm:text-right shrink-0 bg-white/5 sm:bg-transparent p-2 sm:p-0 rounded-xl flex sm:block justify-between items-center">
+                      <span className="text-xs font-mono font-bold text-sky-300">
+                        {shelter.tariffPerNight === 0 ? "FREE / Langar" : `₹${shelter.tariffPerNight}/night`}
+                      </span>
+                      <span className="text-[9px] text-white/40 font-mono block">
+                        {stayDurationDays}d Total: ₹{totalStayCost}
                       </span>
                     </div>
-
-                    <div className="flex justify-between items-center text-[11px] text-white/50 pt-2 border-t border-white/5">
-                      <span className="truncate max-w-[140px]">{shelter.contact}</span>
-                      <button
-                        onClick={() => {
-                          setActiveBookingShelter(shelter);
-                          setTokenGenerated(null);
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/30 text-xs font-bold transition shrink-0"
-                      >
-                        <Ticket className="h-3 w-3" /> {t.preBookBtn}
-                      </button>
-                    </div>
                   </div>
-                );
-              })
-            )}
+
+                  <div className="flex flex-wrap gap-1.5 text-[9px] text-white/80">
+                    {shelter.hasPatientKitchen && (
+                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">
+                        <Utensils className="h-2.5 w-2.5" /> Communal Kitchen
+                      </span>
+                    )}
+                    {shelter.wheelchairAccessible && (
+                      <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                        <CheckCircle2 className="h-2.5 w-2.5" /> Ramp Access
+                      </span>
+                    )}
+                    <span className="px-1.5 py-0.5 rounded bg-white/5 text-white/60 font-mono">
+                      {shelter.bedsAvailable} Beds Vacant
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-[11px] text-white/50 pt-2 border-t border-white/5">
+                    <span className="truncate max-w-[140px]">{shelter.contact}</span>
+                    <button
+                      onClick={() => {
+                        setActiveBookingShelter(shelter);
+                        setTokenGenerated(null);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/30 text-xs font-bold transition shrink-0"
+                    >
+                      <Ticket className="h-3 w-3" /> {t.preBookBtn}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
 
             <div className="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-600/30 space-y-1.5">
               <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 uppercase">
-                <Pill className="h-3.5 w-3.5" /> PM Jan Aushadhi Kendras (All-India)
+                <Pill className="h-3.5 w-3.5" /> PM Jan Aushadhi Generic Network
               </div>
               <p className="text-[11px] text-white/70 leading-relaxed">
-                Generic drug distribution centers located within 500m of listed campuses. Save 50% to 90% below commercial retail MRP.
+                Generic drug dispensaries available at every block and district hospital. Saves 50% to 90% below commercial MRP.
               </p>
             </div>
           </div>
         </div>
+
+        {/* Ayushman Bharat Standard Treatment Cost Table */}
+        <section className="bg-[#131916] p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl space-y-4">
+          <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+            <Layers className="h-4 w-4 text-emerald-400" />
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 block">
+                Standard Government Health Pricing
+              </span>
+              <h3 className="font-serif text-lg font-bold text-white">
+                {t.procedureHeader}
+              </h3>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs font-sans">
+              <thead className="bg-white/5 text-white/60 uppercase font-mono text-[10px]">
+                <tr>
+                  <th className="p-3">Medical Procedure / Surgery</th>
+                  <th className="p-3">Package Code</th>
+                  <th className="p-3 text-emerald-400">Ayushman Bharat (PM-JAY)</th>
+                  <th className="p-3 text-rose-400">Typical Private Hospital</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 bg-[#18201c]">
+                {STANDARD_PROCEDURES.map((p, i) => (
+                  <tr key={i} className="hover:bg-white/5 transition">
+                    <td className="p-3 font-medium text-white">{p.name}</td>
+                    <td className="p-3 font-mono text-white/50">{p.code}</td>
+                    <td className="p-3 font-mono font-bold text-emerald-400">{p.pmjayRate}</td>
+                    <td className="p-3 font-mono text-white/60 line-through">{p.privateCost}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
         {/* Live IoT Recovery Hub */}
         <section id="iot-hub" className="bg-[#131916] p-4 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl space-y-4 sm:space-y-6">
@@ -974,9 +789,9 @@ export default function AarogyaNiwasPage() {
                 </span>
               </div>
               <h2 className="font-serif text-xl sm:text-2xl font-bold text-white mt-0.5">
-                {t.iotHubTitle}
+                Bedside Recovery & SOS Hub
               </h2>
-              <p className="text-[11px] text-white/60">{t.iotHubSub}</p>
+              <p className="text-[11px] text-white/60">Ultra low-cost ESP32 IoT bedside unit designed for Dharamshalas.</p>
             </div>
 
             <div className="flex items-center gap-1.5 self-start sm:self-auto">
@@ -1002,7 +817,7 @@ export default function AarogyaNiwasPage() {
                   onClick={clearSosAlert}
                   className="text-xs bg-white/10 hover:bg-white/20 border border-white/20 px-2.5 py-1 rounded-lg text-white font-semibold transition"
                 >
-                  {t.clearAlarm}
+                  Reset Alarm
                 </button>
               </div>
             </div>
@@ -1046,7 +861,7 @@ export default function AarogyaNiwasPage() {
                 }`}
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
-                {sosTriggered ? t.clearAlarm : t.triggerSos}
+                {sosTriggered ? "Reset Alarm State" : "Trigger Bedside SOS"}
               </button>
             </div>
           </div>
@@ -1195,7 +1010,7 @@ export default function AarogyaNiwasPage() {
             <span className="font-serif font-bold text-white">AarogyaNiwas</span>
             <span>• SIH 2026</span>
           </div>
-          <p>Pan-India Healthcare Transit Hospitality & Bedside Recovery Network.</p>
+          <p>Pan-India Universal Healthcare Transit & Bedside Recovery Network.</p>
         </footer>
       </div>
     </div>
